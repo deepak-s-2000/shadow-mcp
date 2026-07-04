@@ -1,0 +1,16 @@
+downstream_servers:
+  - name: kite
+    transport: sse
+    url: https://mcp.kite.trade/sse
+    call_timeout: 60s
+  - name: colab
+    command: uvx
+    transport: stdio
+    args: ["git+https://github.com/googlecolab/colab-mcp"]
+    call_timeout: 120s
+profiles:
+  - name: vscode
+    identify: { stdio_arg: vscode, http_path: /mcp/vscode }
+    tools:
+      allow: ["kite*", "colab*"]
+      deny: ["kite__place_*"]
