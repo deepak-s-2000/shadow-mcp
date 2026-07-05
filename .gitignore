@@ -7,3 +7,6 @@
 # OS/editor cruft
 .DS_Store
 Thumbs.db
+
+# Local Claude Code settings (personal permissions/paths, not shared config)
+/.claude/
