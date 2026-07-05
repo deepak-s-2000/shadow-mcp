@@ -48,11 +48,49 @@ catalogs - see [Lazy loading](#features) below.
   YAML. Still rough around the edges and not as battle-tested as the rest of
   the gateway - expect sharp corners.
 
-## Quick start
+## Install
+
+### Option A: download a prebuilt binary (no Go, no clone required)
+
+Every [tagged release](https://github.com/deepak-s-2000/shadow-mcp/releases/latest)
+publishes binaries for every platform:
+
+| OS | Arch | Asset |
+|---|---|---|
+| Linux | x86_64 | `shadow-mcp-linux-amd64` |
+| Linux | arm64 | `shadow-mcp-linux-arm64` |
+| macOS | Intel | `shadow-mcp-darwin-amd64` |
+| macOS | Apple Silicon | `shadow-mcp-darwin-arm64` |
+| Windows | x86_64 | `shadow-mcp-windows-amd64.exe` |
+
+```sh
+# macOS/Linux (swap in the asset name for your OS/arch from the table above):
+curl -L -o shadow-mcp https://github.com/deepak-s-2000/shadow-mcp/releases/latest/download/shadow-mcp-darwin-arm64
+chmod +x shadow-mcp
+./shadow-mcp list-tools --profile vscode
+```
+
+On Windows, download `shadow-mcp-windows-amd64.exe` and run it directly from
+PowerShell/cmd - no install step needed.
+
+That's the whole setup: no Go toolchain, no cloning this repo. Running the
+binary with no `--config` (as above) auto-creates an empty starter config the
+first time, in a per-user data directory (see below), which you then edit to
+add your own downstream servers/profiles/rules per `docs/CONFIG.md`. If you
+want to run *this repo's* worked example (the filesystem server + rules
+below) instead of starting from scratch, download
+[`shadow-mcp.yaml`](shadow-mcp.yaml) and the [`rules/`](rules) directory
+alongside the binary too.
+
+### Option B: build from source
 
 ```sh
 go build -o bin/shadow-mcp ./cmd/shadow-mcp
+```
 
+## Quick start
+
+```sh
 # See what a profile would be allowed to call, without any IDE:
 ./bin/shadow-mcp list-tools --config shadow-mcp.yaml --profile vscode
 
