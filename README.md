@@ -6,7 +6,9 @@ separately. shadow-mcp connects to your real downstream MCP servers once,
 aggregates their tools into a single catalog, decides which tools each IDE
 ("profile") is allowed to see, and can run pre/post-hook scripts around every
 tool call - reject a dangerous call before it happens, redact secrets from a
-response, rewrite arguments, and so on.
+response, rewrite arguments, and so on. Its lazy-loading tool catalog can also
+cut per-turn tool-schema tokens by **up to ~80%** on larger aggregated
+catalogs - see [Lazy loading](#features) below.
 
 ## Features
 
