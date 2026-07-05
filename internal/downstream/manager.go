@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"sync"
 	"time"
@@ -94,8 +95,16 @@ func connect(ctx context.Context, s config.DownstreamServer) (*mcp.ClientSession
 	switch s.Transport {
 	case "stdio":
 		cmd = exec.Command(s.Command, s.Args...)
-		for k, v := range s.Env {
-			cmd.Env = append(cmd.Env, k+"="+v)
+		if len(s.Env) > 0 {
+			// Overlay configured vars onto the inherited environment rather
+			// than replacing it outright - exec.Cmd treats a non-nil Env as
+			// the complete environment, so without this, configuring even a
+			// single env var would silently drop everything the child
+			// actually needs to run (PATH, SystemRoot, TEMP, etc.).
+			cmd.Env = os.Environ()
+			for k, v := range s.Env {
+				cmd.Env = append(cmd.Env, k+"="+v)
+			}
 		}
 		configureChildProcess(cmd)
 		transport = &mcp.CommandTransport{Command: cmd}

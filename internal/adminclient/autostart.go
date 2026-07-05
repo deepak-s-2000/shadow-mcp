@@ -53,12 +53,33 @@ func EnsureRunning(configPath string) (*Client, error) {
 	}
 
 	cmd := exec.Command(exe, "daemon", "--config", configPath)
+	// Auto-started daemons have no console attached, so without this their
+	// stdout/stderr - including the health loop's reconnect success/failure
+	// logs - would silently vanish, making a stuck downstream connection
+	// undiagnosable after the fact. A best-effort failure to open the log
+	// file (e.g. DataDir unavailable) shouldn't block the daemon from
+	// starting, so it's not treated as fatal.
+	if logFile, err := daemonLogFile(); err == nil {
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+		defer logFile.Close() // the child has its own inherited handle
+	}
 	detach(cmd)
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("starting shadow-mcp daemon: %w", err)
 	}
 
 	return waitFor(deadline)
+}
+
+// daemonLogFile opens (truncating) the log file an auto-started daemon's
+// stdout/stderr is redirected to.
+func daemonLogFile() (*os.File, error) {
+	dir, err := daemon.DataDir()
+	if err != nil {
+		return nil, err
+	}
+	return os.OpenFile(filepath.Join(dir, "daemon.log"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 }
 
 func waitFor(deadline time.Time) (*Client, error) {

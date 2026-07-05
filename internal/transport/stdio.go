@@ -4,7 +4,9 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shadow-code/shadow-mcp/internal/adminclient"
@@ -34,26 +36,17 @@ func RunStdio(ctx context.Context, configPath string, profileArg string) error {
 		profileName = p.Name
 	}
 
-	admin, err := adminclient.EnsureRunning(configPath)
-	if err != nil {
-		return fmt.Errorf("connecting to shadow-mcp daemon: %w", err)
-	}
-
 	path := "/mcp/_all"
 	if profileName != "" {
 		path = pathForProfile(cfg, profileName)
 	}
 
-	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "shadow-mcp-stdio-adapter", Version: "0.1.0"}, nil)
-	daemonTransport := &mcp.StreamableClientTransport{
-		Endpoint:   admin.MCPEndpoint(path),
-		HTTPClient: admin.AuthenticatedHTTPClient(),
-	}
-	daemonSession, err := mcpClient.Connect(ctx, daemonTransport, nil)
+	daemonSession, err := connectDaemon(ctx, configPath, path)
 	if err != nil {
-		return fmt.Errorf("connecting to shadow-mcp daemon's MCP endpoint: %w", err)
+		return err
 	}
-	defer daemonSession.Close()
+	dc := &daemonConn{configPath: configPath, path: path, session: daemonSession}
+	defer dc.Close()
 
 	relay := mcp.NewServer(&mcp.Implementation{Name: "shadow-mcp", Version: "0.1.0"}, nil)
 	for tool, err := range daemonSession.Tools(ctx, nil) {
@@ -69,11 +62,73 @@ func RunStdio(ctx context.Context, configPath string, profileArg string) error {
 					return nil, err
 				}
 			}
-			return daemonSession.CallTool(ctx, &mcp.CallToolParams{Name: toolName, Arguments: args})
+			return dc.CallTool(ctx, toolName, args)
 		})
 	}
 
 	return relay.Run(ctx, &mcp.StdioTransport{})
+}
+
+// connectDaemon ensures a daemon is running for configPath (auto-starting one
+// if needed) and connects to its MCP relay endpoint for path.
+func connectDaemon(ctx context.Context, configPath, path string) (*mcp.ClientSession, error) {
+	admin, err := adminclient.EnsureRunning(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("connecting to shadow-mcp daemon: %w", err)
+	}
+
+	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "shadow-mcp-stdio-adapter", Version: "0.1.0"}, nil)
+	daemonTransport := &mcp.StreamableClientTransport{
+		Endpoint:   admin.MCPEndpoint(path),
+		HTTPClient: admin.AuthenticatedHTTPClient(),
+	}
+	session, err := mcpClient.Connect(ctx, daemonTransport, nil)
+	if err != nil {
+		return nil, fmt.Errorf("connecting to shadow-mcp daemon's MCP endpoint: %w", err)
+	}
+	return session, nil
+}
+
+// daemonConn holds the relay's connection to the daemon's MCP endpoint,
+// transparently reconnecting - which re-runs EnsureRunning, so a daemon that
+// died outright gets auto-restarted too, not just a dropped connection to a
+// live one - if a call finds the connection dead instead of leaving every IDE
+// tool call broken until the relay itself is restarted.
+type daemonConn struct {
+	configPath string
+	path       string
+
+	mu      sync.Mutex
+	session *mcp.ClientSession
+}
+
+func (d *daemonConn) Close() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.session.Close()
+}
+
+func (d *daemonConn) CallTool(ctx context.Context, name string, args any) (*mcp.CallToolResult, error) {
+	d.mu.Lock()
+	session := d.session
+	d.mu.Unlock()
+
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+	if err == nil || !errors.Is(err, mcp.ErrConnectionClosed) {
+		return res, err
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.session == session {
+		newSession, connErr := connectDaemon(ctx, d.configPath, d.path)
+		if connErr != nil {
+			return nil, fmt.Errorf("%w (reconnect failed: %v)", err, connErr)
+		}
+		session.Close()
+		d.session = newSession
+	}
+	return d.session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
 }
 
 // pathForProfile mirrors daemon.Daemon.PathForProfile without needing an

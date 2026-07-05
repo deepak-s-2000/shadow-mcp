@@ -1,16 +1,32 @@
 downstream_servers:
-  - name: kite
-    transport: sse
-    url: https://mcp.kite.trade/sse
-    call_timeout: 60s
-  - name: colab
-    command: uvx
+  - name: filesystem
     transport: stdio
-    args: ["git+https://github.com/googlecolab/colab-mcp"]
-    call_timeout: 120s
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    call_timeout: 60s
+
 profiles:
   - name: vscode
     identify: { stdio_arg: vscode, http_path: /mcp/vscode }
     tools:
-      allow: ["kite*", "colab*"]
-      deny: ["kite__place_*"]
+      allow: ["filesystem*"]
+    lazy_load:
+      enabled: true
+      limit: 5
+
+rules:
+  - name: guard-write-path
+    script: ./rules/guard_write_path.js
+    language: js
+    hooks: ["pre"]
+    applies_to:
+      tools: ["filesystem__write_file", "filesystem__edit_file", "filesystem__move_file", "filesystem__create_directory"]
+    priority: 10
+
+  - name: mask-file-secrets
+    script: ./rules/mask_file_secrets.py
+    language: python
+    hooks: ["post"]
+    applies_to:
+      tools: ["filesystem__read_file", "filesystem__read_text_file"]
+    priority: 10
