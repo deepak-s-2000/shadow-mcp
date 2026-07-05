@@ -1,0 +1,66 @@
+# Example shadow-mcp config: two downstream servers with a deliberate tool
+# name collision, three IDE profiles with different allowlists, and two rules
+# (a JS pre-hook and a Python post-hook). Run `shadow-mcp list-tools --config
+# configs/example.yaml --profile vscode` to see the resulting filtered catalog.
+
+downstream_servers:
+  - name: everything-a
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-everything"]
+    namespace: false # both servers use namespace:false to demonstrate the
+                     # aggregator force-namespacing "echo" on a real collision
+
+  - name: everything-b
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-everything"]
+    namespace: false
+
+profiles:
+  - name: vscode
+    identify:
+      stdio_arg: vscode
+      http_path: /mcp/vscode
+    tools:
+      allow: ["everything-a__*", "everything-b__get-sum"]
+      deny: ["everything-a__gzip-file-as-resource"]
+
+  - name: cursor
+    identify:
+      stdio_arg: cursor
+      http_path: /mcp/cursor
+    tools:
+      allow: ["*"]
+
+  - name: claude-code
+    identify:
+      stdio_arg: claude-code
+      http_path: /mcp/claude-code
+    tools:
+      allow: ["*"]
+      deny: ["everything-b__*"]
+
+rules:
+  - name: validate-echo-args
+    script: ./rules/validate_echo_args.js
+    language: js
+    hooks: ["pre"]
+    applies_to:
+      tools: ["everything-a__echo", "everything-b__echo"]
+    priority: 5
+    timeout: 2s
+    on_error: reject
+
+  - name: mask-secrets
+    script: ./rules/mask_secrets.py
+    language: python
+    hooks: ["post"]
+    applies_to:
+      tools: ["*"]
+    priority: 10
+    timeout: 5s
+    on_error: reject
+
+http:
+  addr: "127.0.0.1:8090"
