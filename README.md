@@ -50,37 +50,26 @@ catalogs - see [Lazy loading](#features) below.
 
 ## Install
 
-### Option A: download a prebuilt binary (no Go, no clone required)
+### Option A: binary install
 
-Every [tagged release](https://github.com/deepak-s-2000/shadow-mcp/releases/latest)
-publishes binaries for every platform:
-
-| OS | Arch | Asset |
-|---|---|---|
-| Linux | x86_64 | `shadow-mcp-linux-amd64` |
-| Linux | arm64 | `shadow-mcp-linux-arm64` |
-| macOS | Intel | `shadow-mcp-darwin-amd64` |
-| macOS | Apple Silicon | `shadow-mcp-darwin-arm64` |
-| Windows | x86_64 | `shadow-mcp-windows-amd64.exe` |
+Download the binary for your platform from the
+[latest release](https://github.com/deepak-s-2000/shadow-mcp/releases/latest)
+(`shadow-mcp-linux-amd64`, `-linux-arm64`, `-darwin-amd64`, `-darwin-arm64`,
+`-windows-amd64.exe`), then grab this repo's example config to use as a
+starting point (see [Worked example](#worked-example) below):
 
 ```sh
-# macOS/Linux (swap in the asset name for your OS/arch from the table above):
 curl -L -o shadow-mcp https://github.com/deepak-s-2000/shadow-mcp/releases/latest/download/shadow-mcp-darwin-arm64
 chmod +x shadow-mcp
-./shadow-mcp list-tools --profile vscode
+
+curl -L -O https://raw.githubusercontent.com/deepak-s-2000/shadow-mcp/main/shadow-mcp.yaml
+curl -L --create-dirs -o rules/guard_write_path.js https://raw.githubusercontent.com/deepak-s-2000/shadow-mcp/main/rules/guard_write_path.js
+curl -L --create-dirs -o rules/mask_file_secrets.py https://raw.githubusercontent.com/deepak-s-2000/shadow-mcp/main/rules/mask_file_secrets.py
+
+./shadow-mcp list-tools --config shadow-mcp.yaml --profile vscode
 ```
 
-On Windows, download `shadow-mcp-windows-amd64.exe` and run it directly from
-PowerShell/cmd - no install step needed.
-
-That's the whole setup: no Go toolchain, no cloning this repo. Running the
-binary with no `--config` (as above) auto-creates an empty starter config the
-first time, in a per-user data directory (see below), which you then edit to
-add your own downstream servers/profiles/rules per `docs/CONFIG.md`. If you
-want to run *this repo's* worked example (the filesystem server + rules
-below) instead of starting from scratch, download
-[`shadow-mcp.yaml`](shadow-mcp.yaml) and the [`rules/`](rules) directory
-alongside the binary too.
+(Windows: download `shadow-mcp-windows-amd64.exe` instead and run from PowerShell/cmd.)
 
 ### Option B: build from source
 
